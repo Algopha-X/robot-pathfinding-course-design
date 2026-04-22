@@ -1,0 +1,57 @@
+\chapter{问题背景与动态场景建模}\label{chap:background}
+
+\section{问题背景}
+
+机器人避障寻径问题的目标是在存在障碍物的环境中，为机器人规划一条从起点到终点的无碰撞路径。这个问题既是经典的图搜索问题，也和机器人导航、自动驾驶、仓储搬运等应用场景紧密相关。
+
+本课程设计要求先完成 BFS 和 A* 两种基础算法，再在此基础上设计更复杂的场景，并尝试加入其他方法进行改进。为了让不同算法具有可比性，本文统一采用栅格地图作为环境模型，并在相同起点、终点和障碍分布下进行测试。
+
+\section{栅格地图建模}
+
+本文采用二维栅格地图表示机器人运动空间。地图中的每个网格单元只有两种状态：
+\begin{enumerate}
+  \item 空闲单元，记为 0，机器人可以通过；
+  \item 障碍单元，记为 1，机器人不能进入。
+\end{enumerate}
+
+机器人状态定义为坐标 $(r,c)$，动作集合为
+\begin{equation}
+  \mathcal{A}=\{(-1,0),(1,0),(0,-1),(0,1)\},
+\end{equation}
+分别表示上、下、左、右四个方向移动。若下一状态越界或撞到障碍，则该动作无效。
+
+\section{动态场景设计}
+
+为了满足题目中“自主设计更高难度场景图”的要求，本文在原始 9$\times$8 基础场景外，又设计了一个 30$\times$30 的复杂场景。该场景的设计思路如下：
+
+\begin{itemize}
+  \item 通过多条横向、纵向长墙增加整体搜索深度；
+  \item 利用少量门洞制造狭窄通道；
+  \item 设计 U 型障碍和假通路，增加局部陷阱；
+  \item 将起点和终点放置在对角区域，迫使算法进行全局搜索。
+\end{itemize}
+
+这里的“动态场景建模”主要体现在两点：一是地图规模从简单场景扩展到复杂场景；二是在搜索过程展示中，地图状态会随着访问节点和最终路径逐帧变化，从而形成动态演示效果。
+
+\section{场景建模实现}
+
+复杂场景的核心构造方式是先创建空白栅格，再按坐标填充障碍物和门洞。对应代码如下：
+
+\begin{lstlisting}[language=Python,caption={30x30 场景图的构造方式},label={code:map}]
+def get_challenge_map(size=30):
+    grid = np.zeros((size, size), dtype=int)
+    grid[0, :] = 1
+    grid[-1, :] = 1
+    grid[:, 0] = 1
+    grid[:, -1] = 1
+
+    for col, rows in vertical_walls.items():
+        for row in rows:
+            grid[row, col] = 1
+
+    for row, cols in horizontal_walls.items():
+        for col in cols:
+            grid[row, col] = 1
+\end{lstlisting}
+
+通过这种方式，可以比较灵活地设计障碍布局，也方便后续测试不同算法在同一场景下的表现。

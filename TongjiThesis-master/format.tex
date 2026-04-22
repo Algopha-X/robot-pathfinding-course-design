@@ -1,0 +1,145 @@
+\documentclass[
+  oneside,
+  degree=bachelor,
+  fullwidthstop=false,
+  fontset=none,
+  times=false,
+  minted=false,
+  biblatex=false,
+]{tongjithesis}
+
+% ============================================================
+%  课程报告通用格式模板
+%  说明：
+%  1. 这份文件是单文件模板，直接复制后改封面和正文即可。
+%  2. 编译方式建议使用 XeLaTeX。
+%  3. 这套字体配置已经针对当前这台 mac 做过兼容修复。
+% ============================================================
+
+\usepackage{xeCJK}
+\setCJKmainfont[
+  Path=/System/Library/Fonts/Supplemental/,
+  Extension=.ttc,
+  FontIndex=3,
+  BoldFont=Songti.ttc,
+  BoldFeatures={FontIndex=1},
+  AutoFakeBold=false
+]{Songti.ttc}
+\setCJKsansfont[
+  Path=/System/Library/Fonts/,
+  Extension=.ttc,
+  FontIndex=1,
+  BoldFont=STHeiti Medium.ttc,
+  BoldFeatures={FontIndex=1}
+]{STHeiti Light.ttc}
+\setCJKmonofont{仿宋_GB2312}[Path=/Users/kinakoxu/Library/Fonts/,Extension=.ttf]
+\setCJKfamilyfont{zhsong}[
+  Path=/System/Library/Fonts/Supplemental/,
+  Extension=.ttc,
+  FontIndex=3,
+  BoldFont=Songti.ttc,
+  BoldFeatures={FontIndex=1},
+  AutoFakeBold=false
+]{Songti.ttc}
+\setCJKfamilyfont{zhhei}[
+  Path=/System/Library/Fonts/,
+  Extension=.ttc,
+  FontIndex=1,
+  BoldFont=STHeiti Medium.ttc,
+  BoldFeatures={FontIndex=1}
+]{STHeiti Light.ttc}
+\setCJKfamilyfont{zhkai}{楷体_GB2312}[Path=/Users/kinakoxu/Library/Fonts/,Extension=.ttf]
+\setCJKfamilyfont{zhfs}{仿宋_GB2312}[Path=/Users/kinakoxu/Library/Fonts/,Extension=.ttf]
+\providecommand{\songti}{\CJKfamily{zhsong}}
+\providecommand{\heiti}{\CJKfamily{zhhei}}
+\providecommand{\kaishu}{\CJKfamily{zhkai}}
+\providecommand{\fangsong}{\CJKfamily{zhfs}}
+
+\begin{document}
+
+% ============================================================
+%  封面信息
+%  直接修改下面这些字段
+% ============================================================
+\school{国豪书院}
+\major{}
+\student{2452627}{徐佳涛}
+\thesistitle{课程报告标题第一行\\课程报告标题第二行}{}
+\thesistitleeng{Course Report Title in English}{}
+\thesisadvisor{张红云}
+\thesisdate{\the\year}{\the\month}{\the\day}
+
+\MakeCover
+\cleardoublepage
+
+\tableofcontents
+\cleardoublepage
+
+\mainmatter
+
+\chapter{问题背景与动态场景建模}
+这一章一般写题目来源、研究背景、任务目标、场景抽象方式，以及地图或环境建模方法。
+
+如果是机器人、搜索、机器学习类题目，可以在这里先定义状态空间、动作空间、约束条件和评价指标。
+
+\chapter{项目结构与程序设计}
+这一章一般介绍代码结构、主要文件、模块划分、程序执行流程。
+
+可以配合简短代码片段说明主程序如何组织各个算法模块、可视化模块和数据统计模块。
+
+\chapter{算法设计}
+这一章写算法原理最合适。可以分小节介绍 BFS、A*、Dijkstra、强化学习、启发式算法等。
+
+建议写法：
+\begin{itemize}
+  \item 先说明算法核心思想；
+  \item 再说明为什么适合本题；
+  \item 最后补一两句优缺点。
+\end{itemize}
+
+\chapter{核心代码实现}
+这一章适合放关键代码，而不是把整份程序贴进来。建议只保留最核心的函数或逻辑。
+
+\begin{lstlisting}[language=Python,caption={示例：A* 搜索框架}]
+def a_star_search(grid, start, end):
+    open_set = []
+    heapq.heappush(open_set, (0, start))
+    g_score = {start: 0}
+
+    while open_set:
+        _, current = heapq.heappop(open_set)
+        if current == end:
+            return True
+\end{lstlisting}
+
+\chapter{实验结果与动态可视化}
+这一章一般写实验环境、测试场景、结果图、动态图、指标表格。
+
+如果需要插图，推荐用下面这种写法：
+
+\begin{figure}[H]
+  \centering
+  % \includegraphics[width=0.8\textwidth]{your_figure.png}
+  \caption{在此处替换为你的实验图标题}
+\end{figure}
+
+\chapter{结果分析与讨论}
+这一章重点写不同方法之间的比较，包括：
+\begin{itemize}
+  \item 搜索效率是否更高；
+  \item 路径是否更短、更平滑；
+  \item 是否容易陷入局部最优；
+  \item 是否需要训练；
+  \item 算法在复杂场景中的鲁棒性如何。
+\end{itemize}
+
+如果题目允许，也可以在这一章写局限性和后续改进方向。
+
+\chapter{总结}
+这一章通常用一段到两段话概括全文即可，回答两个问题：
+\begin{itemize}
+  \item 这次课程设计完成了什么；
+  \item 最终得到的主要结论是什么。
+\end{itemize}
+
+\end{document}

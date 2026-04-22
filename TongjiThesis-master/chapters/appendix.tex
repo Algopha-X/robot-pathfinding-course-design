@@ -1,0 +1,22 @@
+\appendixsection{程序文件说明}\label{sec:appendix-files}
+
+本实验提交的主要程序与结果文件如下：
+
+\begin{itemize}
+  \item \texttt{pathfinder.py}：统一实现 BFS、A*、改进 A*、Q-Learning 与人工势场法，并输出静态结果图和 GIF 动态展示；
+  \item \texttt{Dijikstra.py}：实现 Dijkstra 算法，并与 BFS、A* 进行单独对比；
+  \item \texttt{basic\_map\_comparison.png}、\texttt{challenge\_30x30\_comparison.png}：多算法结果汇总图；
+  \item \texttt{challenge\_30x30\_q\_learning\_curve.png}：Q-Learning 训练回报曲线；
+  \item \texttt{basic\_map\_bfs.gif}、\texttt{challenge\_30x30\_astar.gif} 等：搜索过程动态展示文件。
+\end{itemize}
+
+\appendixsubsection{程序运行方式}
+
+本文所有程序均可在项目根目录下通过以下命令运行：
+
+\begin{verbatim}
+python3 pathfinder.py
+python3 Dijikstra.py
+\end{verbatim}
+
+其中，\texttt{pathfinder.py} 将生成基础场景与复杂场景的对比图、Q-Learning 训练曲线以及 GIF 动画；\texttt{Dijikstra.py} 将生成 Dijkstra 与 BFS、A* 的对比图并输出局限性分析。

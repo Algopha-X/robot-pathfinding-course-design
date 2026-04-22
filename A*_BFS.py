@@ -1,0 +1,176 @@
+diff --git a//Users/kinakoxu/Documents/vscode/ai/pathfinder.py b//Users/kinakoxu/Documents/vscode/ai/pathfinder.py
+deleted file mode 100644
+--- a//Users/kinakoxu/Documents/vscode/ai/pathfinder.py
++++ /dev/null
+@@ -1,171 +0,0 @@
+-import numpy as np
+-import matplotlib.pyplot as plt
+-import matplotlib.colors as mcolors
+-from collections import deque
+-import heapq
+-import time
+-
+-# ==========================================
+-# 1. 环境构建
+-# ==========================================
+-def get_map():
+-    """生成 9x8 的栅格地图环境"""
+-    grid = np.zeros((9, 8))
+-    start_pos = (2, 3)  # S
+-    end_pos = (4, 7)    # E
+-    
+-    # 蓝色障碍物精确坐标
+-    grid[1, 1:5] = 1
+-    grid[2:4, 1] = 1
+-    grid[1:8, 4] = 1
+-    grid[7, 1:5] = 1
+-    
+-    return grid, start_pos, end_pos
+-
+-def get_neighbors(grid, node):
+-    """获取合法的邻居节点（上下左右）"""
+-    neighbors = []
+-    directions = [(-1, 0), (1, 0), (0, -1), (0, 1)] # 上 下 左 右
+-    for dr, dc in directions:
+-        nr, nc = node[0] + dr, node[1] + dc
+-        # 边界检查与障碍物检查
+-        if 0 <= nr < grid.shape[0] and 0 <= nc < grid.shape[1]:
+-            if grid[nr, nc] == 0: 
+-                neighbors.append((nr, nc))
+-    return neighbors
+-
+-def reconstruct_path(came_from, current):
+-    """回溯生成最短路径"""
+-    path = [current]
+-    while current in came_from:
+-        current = came_from[current]
+-        path.append(current)
+-    path.reverse()
+-    return path
+-
+-# ==========================================
+-# 2. 核心算法实现
+-# ==========================================
+-def bfs_search(grid, start, end):
+-    """
+-    广度优先搜索 (BFS)
+-    特点：使用队列实现按层扩展，保证找到无权图的最短路径。盲目搜索。
+-    """
+-    queue = deque([start])
+-    visited = {start}
+-    came_from = {}
+-    visited_order = [] # 记录访问顺序用于动画展示
+-
+-    while queue:
+-        current = queue.popleft()
+-        visited_order.append(current)
+-
+-        if current == end:
+-            return visited_order, reconstruct_path(came_from, current)
+-
+-        for nxt in get_neighbors(grid, current):
+-            if nxt not in visited:
+-                visited.add(nxt)
+-                came_from[nxt] = current
+-                queue.append(nxt)
+-                
+-    return visited_order, [] # 未找到路径
+-
+-def a_star_search(grid, start, end):
+-    """
+-    A* 启发式搜索
+-    特点：使用优先队列，根据 f(n) = g(n) + h(n) 选择优先级最高的节点。
+-    """
+-    def heuristic(p1, p2):
+-        # 使用曼哈顿距离作为启发式函数 h(n)
+-        return abs(p1[0] - p2[0]) + abs(p1[1] - p2[1])
+-
+-    open_set = []
+-    heapq.heappush(open_set, (0, start))
+-    came_from = {}
+-    g_score = {start: 0}
+-    visited = set()
+-    visited_order = []
+-
+-    while open_set:
+-        _, current = heapq.heappop(open_set)
+-
+-        # 避免优先队列中冗余节点的重复扩展
+-        if current in visited:
+-            continue
+-        visited.add(current)
+-        visited_order.append(current)
+-
+-        if current == end:
+-            return visited_order, reconstruct_path(came_from, current)
+-
+-        for nxt in get_neighbors(grid, current):
+-            tentative_g = g_score[current] + 1
+-            if nxt not in g_score or tentative_g < g_score[nxt]:
+-                came_from[nxt] = current
+-                g_score[nxt] = tentative_g
+-                f_score = tentative_g + heuristic(nxt, end)
+-                heapq.heappush(open_set, (f_score, nxt))
+-
+-    return visited_order, []
+-
+-# ==========================================
+-# 3. 动态可视化引擎
+-# ==========================================
+-def animate_search(grid, start, end, visited_order, path, title):
+-    """利用 matplotlib 的交互模式进行动态过程展示"""
+-    plt.ion() # 开启交互模式
+-    fig, ax = plt.subplots(figsize=(6, 7))
+-    display_grid = np.copy(grid)
+-    
+-    # 自定义颜色映射: 0=通路(白), 1=障碍(蓝), 2=已访问(浅蓝), 3=最短路径(金黄)
+-    cmap = mcolors.ListedColormap(['white', '#4A6BBE', '#A9D0F5', '#FFD700'])
+-    bounds = [-0.5, 0.5, 1.5, 2.5, 3.5]
+-    norm = mcolors.BoundaryNorm(bounds, cmap.N)
+-
+-    img = ax.imshow(display_grid, cmap=cmap, norm=norm, origin='upper')
+-    
+-    # 绘制文字与网格线
+-    ax.text(start[1], start[0], 'S', color='red', ha='center', va='center', fontsize=18, weight='bold')
+-    ax.text(end[1], end[0], 'E', color='black', ha='center', va='center', fontsize=18, weight='bold')
+-    ax.set_xticks(np.arange(-0.5, 8, 1))
+-    ax.set_yticks(np.arange(-0.5, 9, 1))
+-    ax.set_xticklabels([])
+-    ax.set_yticklabels([])
+-    ax.grid(color='gray', linestyle='-', linewidth=0.5, alpha=0.5)
+-    ax.set_title(title, pad=15, fontsize=14, weight='bold')
+-
+-    # 动画阶段一：展示探索过程
+-    for node in visited_order:
+-        if node != start and node != end:
+-            display_grid[node] = 2 # 标记为已访问
+-            img.set_data(display_grid)
+-            plt.pause(0.02) # 控制搜索速度
+-
+-    # 动画阶段二：绘制最终的最短路径
+-    if path:
+-        time.sleep(0.3) # 停顿一下再显示最终路径
+-        for node in path:
+-            if node != start and node != end:
+-                display_grid[node] = 3 # 标记为最终路径
+-                img.set_data(display_grid)
+-                plt.pause(0.05)
+-
+-    plt.ioff() # 关闭交互模式
+-    plt.show() # 保持最后一个画面
+-
+-# ==========================================
+-# 4. 主程序执行入口
+-# ==========================================
+-if __name__ == "__main__":
+-    grid, start, end = get_map()
+-
+-    print("开始运行 BFS 广度优先搜索...")
+-    bfs_visited, bfs_path = bfs_search(grid, start, end)
+-    print(f"BFS 探索了 {len(bfs_visited)} 个节点，最短路径长度为 {len(bfs_path)-1} 步。")
+-    animate_search(grid, start, end, bfs_visited, bfs_path, "1. BFS Pathfinding")
+-
+-    print("\n开始运行 A* 启发式搜索...")
+-    astar_visited, astar_path = a_star_search(grid, start, end)
+-    print(f"A* 探索了 {len(astar_visited)} 个节点，最短路径长度为 {len(astar_path)-1} 步。")
+-    animate_search(grid, start, end, astar_visited, astar_path, "2. A* Pathfinding")

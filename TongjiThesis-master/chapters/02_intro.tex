@@ -1,0 +1,54 @@
+\chapter{项目结构与程序设计}\label{chap:structure}
+
+\section{项目文件结构}
+
+本次课程设计的主要程序文件如下：
+
+\begin{itemize}
+  \item \texttt{pathfinder.py}：主程序，负责 BFS、A*、改进 A*、Q-Learning、人工势场法的统一实验，以及结果图和 GIF 动画生成；
+  \item \texttt{Dijikstra.py}：单独实现 Dijkstra 算法，并与 BFS、A* 进行对比；
+  \item \texttt{robot\_search.py}：早期的基础地图验证脚本；
+  \item 实验结果图：如 \texttt{challenge\_30x30\_comparison.png}、\texttt{challenge\_30x30\_q\_learning\_curve.png} 等。
+\end{itemize}
+
+\section{主程序设计思路}
+
+为了便于对比多种算法，本文将主程序组织成统一框架。整体流程如下：
+
+\begin{enumerate}
+  \item 生成基础场景或 30x30 复杂场景；
+  \item 调用不同算法进行寻路；
+  \item 记录访问顺序、最终路径和综合代价；
+  \item 输出对比表格、静态结果图和动态图。
+\end{enumerate}
+
+这种组织方式的优点是结构清晰，各算法共享同一套地图和评价指标，便于直接比较结果。
+
+\section{核心模块划分}
+
+从程序实现角度来看，整个系统主要分为以下几个模块：
+
+\begin{itemize}
+  \item \textbf{地图模块}：负责基础地图与复杂地图的构造；
+  \item \textbf{搜索模块}：包括 BFS、A*、改进 A*、Dijkstra 等图搜索方法；
+  \item \textbf{学习模块}：实现 Q-Learning 的训练和策略提取；
+  \item \textbf{可视化模块}：负责静态图片与 GIF 动态展示的生成；
+  \item \textbf{结果统计模块}：输出路径步数、访问节点数和综合代价。
+\end{itemize}
+
+\section{程序执行流程}
+
+主程序的执行流程可以概括为“建图、搜索、统计、绘图”四个步骤。入口函数的组织如下：
+
+\begin{lstlisting}[language=Python,caption={主程序的整体流程},label={code:main}]
+def main():
+    basic_grid, basic_start, basic_end = get_basic_map()
+    basic_results = compare_on_map(basic_grid, basic_start, basic_end)
+
+    challenge_grid, challenge_start, challenge_end = get_challenge_map()
+    challenge_results = compare_on_map(
+        challenge_grid, challenge_start, challenge_end
+    )
+\end{lstlisting}
+
+从这个流程可以看出，程序对基础场景和复杂场景采用统一的测试逻辑，因此后续如果需要继续增加新场景或新算法，也比较方便扩展。

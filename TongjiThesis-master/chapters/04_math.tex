@@ -1,0 +1,113 @@
+\chapter{核心代码实现}\label{chap:code}
+
+\section{BFS 核心代码}
+
+BFS 的核心思想是使用队列按层遍历。代码如下：
+
+\begin{lstlisting}[language=Python,caption={BFS 的核心实现},label={code:bfs}]
+def bfs_search(grid, start, end):
+    queue = deque([start])
+    visited = {start}
+    came_from = {}
+
+    while queue:
+        current = queue.popleft()
+        if current == end:
+            return reconstruct_path(came_from, current)
+
+        for nxt in get_neighbors(grid, current):
+            if nxt not in visited:
+                visited.add(nxt)
+                came_from[nxt] = current
+                queue.append(nxt)
+\end{lstlisting}
+
+\section{A* 核心代码}
+
+A* 通过优先队列维护待访问节点，并用 $f=g+h$ 来确定扩展优先级。
+
+\begin{lstlisting}[language=Python,caption={A* 的节点扩展逻辑},label={code:astar}]
+def a_star_search(grid, start, end):
+    open_set = []
+    heapq.heappush(open_set, (0, start))
+    g_score = {start: 0}
+
+    while open_set:
+        _, current = heapq.heappop(open_set)
+        if current == end:
+            return True
+
+        for nxt in get_neighbors(grid, current):
+            tentative_g = g_score[current] + 1
+            heuristic = abs(nxt[0] - end[0]) + abs(nxt[1] - end[1])
+            f_score = tentative_g + heuristic
+            heapq.heappush(open_set, (f_score, nxt))
+\end{lstlisting}
+
+\section{改进 A* 核心代码}
+
+改进 A* 主要体现在代价函数设计上，代码如下：
+
+\begin{lstlisting}[language=Python,caption={改进 A* 的附加代价},label={code:improved-astar}]
+step_cost = 1.0
+step_cost += nearby_obstacle_penalty(grid, nxt)
+if prev_dir is not None and direction != prev_dir:
+    step_cost += 0.1
+
+heuristic = manhattan(nxt, end)
+heuristic += 0.2 * nearby_obstacle_penalty(grid, nxt)
+f_score = tentative_g + heuristic_weight * heuristic
+\end{lstlisting}
+
+\section{Q-Learning 核心代码}
+
+Q-Learning 通过奖惩更新 Q 表，代码如下：
+
+\begin{lstlisting}[language=Python,caption={Q-Learning 的价值更新},label={code:qlearning}]
+reward = self.step_reward(state, nxt, valid, seen)
+best_next = np.max(self.q_table[nxt[0], nxt[1]])
+td_target = reward + self.gamma * best_next
+td_error = td_target - self.q_table[state[0], state[1], action]
+self.q_table[state[0], state[1], action] += self.alpha * td_error
+\end{lstlisting}
+
+\section{Dijkstra 核心代码}
+
+Dijkstra 的重点是按当前最小路径代价不断扩展节点：
+
+\begin{lstlisting}[language=Python,caption={Dijkstra 的核心实现},label={code:dijkstra}]
+priority_queue = [(0.0, start)]
+distances = {start: 0.0}
+
+while priority_queue:
+    current_cost, current = heapq.heappop(priority_queue)
+    if current == end:
+        return True
+    for neighbor in get_neighbors(grid, current):
+        new_cost = current_cost + 1.0
+        if new_cost < distances.get(neighbor, float("inf")):
+            distances[neighbor] = new_cost
+            heapq.heappush(priority_queue, (new_cost, neighbor))
+\end{lstlisting}
+
+\section{动态可视化核心代码}
+
+动态展示的关键是根据访问顺序和路径回溯过程逐帧更新图像：
+
+\begin{lstlisting}[language=Python,basicstyle=\footnotesize\ttfamily,caption={动态展示中的帧更新逻辑},label={code:gif}]
+def update(frame_idx):
+    display = np.copy(base_grid)
+
+    for node in visited_frames[:frame_idx]:
+        if node not in (start, end) and display[node] == 0:
+            display[node] = 2
+
+    if frame_idx >= len(visited_frames) and result.success:
+        path_idx = frame_idx - len(visited_frames)
+        for node in path_frames[:path_idx]:
+            if node not in (start, end):
+                display[node] = 3
+
+    image.set_data(display)
+    return [image]
+\end{lstlisting}

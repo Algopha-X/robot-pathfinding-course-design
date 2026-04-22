@@ -1,0 +1,68 @@
+\documentclass[
+  oneside,
+  degree=bachelor,
+  fullwidthstop=false,
+  fontset=none,
+  times=false,
+  minted=false,
+  biblatex=false,
+]{tongjithesis}
+
+\usepackage{xeCJK}
+\setCJKmainfont[
+  Path=/System/Library/Fonts/Supplemental/,
+  Extension=.ttc,
+  FontIndex=3,
+  BoldFont=Songti.ttc,
+  BoldFeatures={FontIndex=1},
+  AutoFakeBold=false
+]{Songti.ttc}
+\setCJKsansfont[
+  Path=/System/Library/Fonts/,
+  Extension=.ttc,
+  FontIndex=1,
+  BoldFont=STHeiti Medium.ttc,
+  BoldFeatures={FontIndex=1}
+]{STHeiti Light.ttc}
+\setCJKmonofont{仿宋_GB2312}[Path=/Users/kinakoxu/Library/Fonts/,Extension=.ttf]
+\setCJKfamilyfont{zhsong}[
+  Path=/System/Library/Fonts/Supplemental/,
+  Extension=.ttc,
+  FontIndex=3,
+  BoldFont=Songti.ttc,
+  BoldFeatures={FontIndex=1},
+  AutoFakeBold=false
+]{Songti.ttc}
+\setCJKfamilyfont{zhhei}[
+  Path=/System/Library/Fonts/,
+  Extension=.ttc,
+  FontIndex=1,
+  BoldFont=STHeiti Medium.ttc,
+  BoldFeatures={FontIndex=1}
+]{STHeiti Light.ttc}
+\setCJKfamilyfont{zhkai}{楷体_GB2312}[Path=/Users/kinakoxu/Library/Fonts/,Extension=.ttf]
+\setCJKfamilyfont{zhfs}{仿宋_GB2312}[Path=/Users/kinakoxu/Library/Fonts/,Extension=.ttf]
+\providecommand{\songti}{\CJKfamily{zhsong}}
+\providecommand{\heiti}{\CJKfamily{zhhei}}
+\providecommand{\kaishu}{\CJKfamily{zhkai}}
+\providecommand{\fangsong}{\CJKfamily{zhfs}}
+
+\begin{document}
+
+\input{chapters/metadata}
+\MakeCover
+\cleardoublepage
+
+\tableofcontents
+\cleardoublepage
+
+\mainmatter
+\input{chapters/01_guide}
+\input{chapters/02_intro}
+\input{chapters/03_float}
+\input{chapters/04_math}
+\input{chapters/05_reference}
+\input{chapters/06_conclusion}
+\input{chapters/07_summary}
+
+\end{document}

@@ -1,0 +1,11 @@
+\MakeAbstract{
+    本次课程设计围绕机器人避障寻径问题展开。实验以栅格地图为环境模型，先实现了 BFS 和 A* 两种基础算法，再在此基础上补充改进 A*、Q-Learning、人工势场法和 Dijkstra 算法，并设计了一个 30x30 的复杂场景进行测试。改进 A* 通过加入贴障惩罚和转向惩罚来优化路径质量；Q-Learning 通过奖励机制学习从起点到终点的动作策略；人工势场法用于展示局部极小值问题；Dijkstra 作为不带启发式信息的最短路算法用于对照分析。
+
+    实验结果表明，BFS 和 Dijkstra 能稳定求得最短路径，但搜索范围较大；A* 能明显减少访问节点数；改进 A* 在路径长度相同的情况下综合代价更低；Q-Learning 在训练后可以找到可行路径；人工势场法在复杂障碍分布下容易失败。为便于展示算法执行过程，程序还将 BFS、A* 和改进 A* 的搜索过程导出为 GIF 动画。
+}{机器人避障；路径规划；A*算法；Q-Learning；人工势场法}
+
+\MakeAbstractEng{
+    Robot obstacle avoidance path planning is a fundamental problem in autonomous navigation. Its goal is to generate a collision-free path from a start position to a target position in a known or observable environment. In this work, the grid map is adopted as the environment model. First, two basic search algorithms, BFS and A*, are implemented. Then, according to the requirement of designing a more challenging environment and improving the planning strategy, a complex 30$\times$30 scenario is manually constructed, and several additional methods are implemented, including improved A*, Q-Learning, artificial potential field, and Dijkstra.
+
+    The improved A* introduces obstacle-nearness penalty and turning penalty into the cost function, so that the generated path becomes smoother and safer. Q-Learning learns the mapping from state to action through reward feedback. The artificial potential field method is used to illustrate the local minimum problem, while Dijkstra serves as a heuristic-free baseline. Experimental results show that BFS and Dijkstra can guarantee feasible shortest paths but tend to expand many more nodes, A* significantly reduces the search range, improved A* achieves a lower overall path cost, and Q-Learning can learn a feasible policy after sufficient training. In addition, dynamic visualization of the search process is implemented by exporting the exploration procedure of BFS, A*, and improved A* into GIF files. The results indicate that graph search and learning-based methods have complementary strengths and can be further combined for more complex robotic navigation tasks.
+}{robot obstacle avoidance, path planning, A* algorithm, Q-Learning, artificial potential field}
