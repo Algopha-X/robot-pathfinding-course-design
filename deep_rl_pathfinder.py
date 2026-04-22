@@ -1,10 +1,13 @@
 import os
 import random
+import tempfile
 from collections import deque
 from dataclasses import dataclass
+from pathlib import Path
 
-os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
-os.environ.setdefault("XDG_CACHE_HOME", "/tmp")
+temp_dir = tempfile.gettempdir()
+os.environ.setdefault("MPLCONFIGDIR", os.path.join(temp_dir, "matplotlib"))
+os.environ.setdefault("XDG_CACHE_HOME", temp_dir)
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -228,6 +231,7 @@ class GridWorldEnv:
 
         reward = -0.2
         done = False
+        reached_goal = False
         valid = in_bounds(self.grid, nxt) and self.grid[nxt] == 0
         old_distance = abs(self.agent[0] - self.goal[0]) + abs(self.agent[1] - self.goal[1])
 
@@ -253,11 +257,18 @@ class GridWorldEnv:
         if self.agent == self.goal:
             reward += 40.0
             done = True
+            reached_goal = True
 
+        truncated = False
         if self.steps >= self.max_steps:
             done = True
+            truncated = True
 
-        return self.encode_state(), reward, done, {"position": self.agent}
+        return self.encode_state(), reward, done, {
+            "position": self.agent,
+            "reached_goal": reached_goal,
+            "truncated": truncated and not reached_goal,
+        }
 
 
 class DeepRLPathPlanner:
@@ -279,6 +290,10 @@ class DeepRLPathPlanner:
         self.grid = grid
         self.start = start
         self.goal = goal
+        self.eval_grid = np.copy(grid)
+        self.eval_start = start
+        self.eval_goal = goal
+        self.map_size = grid.shape[0]
         env_max_steps = min(grid.shape[0] * grid.shape[1], 1200)
         self.env = GridWorldEnv(grid, start, goal, max_steps=env_max_steps)
         self.gamma = gamma
@@ -298,6 +313,28 @@ class DeepRLPathPlanner:
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
         self.criterion = nn.SmoothL1Loss()
         self.buffer = ReplayBuffer(capacity=buffer_capacity)
+
+    def set_problem(self, grid, start, goal):
+        self.grid = grid
+        self.start = start
+        self.goal = goal
+        env_max_steps = min(grid.shape[0] * grid.shape[1], 1200)
+        self.env = GridWorldEnv(grid, start, goal, max_steps=env_max_steps)
+
+    def load_weights(self, model_path):
+        model_path = Path(model_path)
+        if not model_path.exists():
+            return False
+
+        try:
+            state_dict = torch.load(model_path, map_location=self.device, weights_only=True)
+        except TypeError:
+            state_dict = torch.load(model_path, map_location=self.device)
+
+        self.policy_net.load_state_dict(state_dict)
+        self.target_net.load_state_dict(state_dict)
+        self.target_net.eval()
+        return True
 
     def select_action(self, state, greedy=False):
         if (not greedy) and random.random() < self.epsilon:
@@ -332,12 +369,28 @@ class DeepRLPathPlanner:
         self.optimizer.step()
         return float(loss.item())
 
-    def train(self, episodes=180):
+    def train(
+        self,
+        episodes=180,
+        random_maps=False,
+        map_seed_start=1000,
+        eval_interval=20,
+        eval_mazes=5,
+        eval_seed_start=2000,
+    ):
         rewards_history = []
         loss_history = []
         best_path = None
+        eval_history = []
 
         for episode in range(1, episodes + 1):
+            if random_maps:
+                train_grid, train_start, train_goal, _ = generate_complex_map(
+                    size=self.map_size,
+                    seed=map_seed_start + episode,
+                )
+                self.set_problem(train_grid, train_start, train_goal)
+
             state = self.env.reset()
             episode_reward = 0.0
             losses = []
@@ -363,47 +416,122 @@ class DeepRLPathPlanner:
 
             self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
 
-            rollout = self.rollout_policy(max_steps=self.env.max_steps)
+            rollout = self.rollout_policy(
+                max_steps=min(self.eval_grid.shape[0] * self.eval_grid.shape[1], 1200),
+                grid=self.eval_grid,
+                start=self.eval_start,
+                goal=self.eval_goal,
+            )
             if rollout.success:
                 if best_path is None or len(rollout.path) < len(best_path.path):
                     best_path = rollout
 
-            if episode % 10 == 0:
-                print(
-                    f"Episode {episode:03d} | reward={episode_reward:7.2f} | "
-                    f"epsilon={self.epsilon:.3f} | success={rollout.success}"
+            eval_summary = None
+            if eval_interval and episode % eval_interval == 0:
+                eval_summary = evaluate_generalization(
+                    self,
+                    num_mazes=eval_mazes,
+                    start_seed=eval_seed_start,
+                )
+                eval_history.append(
+                    {
+                        "episode": episode,
+                        "success_rate": eval_summary["success_count"] / eval_summary["num_mazes"],
+                    }
                 )
 
-        return rewards_history, loss_history, best_path
+            if episode % 10 == 0:
+                message = (
+                    f"Episode {episode:03d} | reward={episode_reward:7.2f} | "
+                    f"reward_ma20={moving_average(rewards_history, 20)[-1]:7.2f} | "
+                    f"loss_ma20={moving_average(loss_history, 20)[-1]:.4f} | "
+                    f"epsilon={self.epsilon:.3f} | success={rollout.success}"
+                )
+                if eval_summary is not None:
+                    message += (
+                        f" | eval={eval_summary['success_count']}/{eval_summary['num_mazes']}"
+                    )
+                print(message)
 
-    def rollout_policy(self, max_steps=None):
-        state = self.env.reset()
-        max_steps = max_steps or self.env.max_steps
-        path = [self.start]
-        visited_order = [self.start]
-        seen_positions = {self.start}
+        return rewards_history, loss_history, best_path, eval_history
+
+    def rollout_policy(self, max_steps=None, grid=None, start=None, goal=None):
+        if grid is None:
+            env = self.env
+            start = self.start
+            goal = self.goal
+        else:
+            env_max_steps = min(grid.shape[0] * grid.shape[1], 1200)
+            env = GridWorldEnv(grid, start, goal, max_steps=env_max_steps)
+
+        state = env.reset()
+        max_steps = max_steps or env.max_steps
+        path = [start]
+        visited_order = [start]
+        seen_positions = {start}
+        reached_goal = start == goal
 
         for _ in range(max_steps):
             action = self.select_action(state, greedy=True)
-            next_state, _, done, info = self.env.step(action)
+            next_state, _, done, info = env.step(action)
             pos = info["position"]
             if pos != path[-1]:
                 path.append(pos)
             if pos not in seen_positions:
                 visited_order.append(pos)
                 seen_positions.add(pos)
+            reached_goal = reached_goal or info.get("reached_goal", False) or pos == goal
             state = next_state
             if done:
                 break
 
-        success = path[-1] == self.goal
+        success = reached_goal or env.agent == goal or path[-1] == goal
         return SearchResult(
             "DQN",
-            path if success else [],
+            path,
             visited_order,
             compute_path_cost(path) if success else float("inf"),
             success,
+            {
+                "final_position": path[-1],
+                "reached_goal": reached_goal,
+                "steps": len(path) - 1,
+            },
         )
+
+
+def evaluate_generalization(planner, num_mazes=10, start_seed=100):
+    records = []
+    success_count = 0
+    total_ratio = 0.0
+
+    for seed in range(start_seed, start_seed + num_mazes):
+        grid, start, goal, bfs_result = generate_complex_map(size=planner.map_size, seed=seed)
+        rollout = planner.rollout_policy(grid=grid, start=start, goal=goal)
+        if rollout.success:
+            success_count += 1
+            total_ratio += (len(rollout.path) - 1) / max(len(bfs_result.path) - 1, 1)
+        records.append((seed, rollout.success, len(rollout.path) - 1, len(bfs_result.path) - 1))
+
+    avg_ratio = total_ratio / success_count if success_count else float("inf")
+    return {
+        "success_count": success_count,
+        "num_mazes": num_mazes,
+        "avg_path_ratio": avg_ratio,
+        "records": records,
+    }
+
+
+def moving_average(values, window):
+    if not values:
+        return np.array([])
+    values = np.asarray(values, dtype=np.float32)
+    if len(values) < window:
+        return values.copy()
+    kernel = np.ones(window, dtype=np.float32) / window
+    prefix = values[: window - 1]
+    smooth = np.convolve(values, kernel, mode="valid")
+    return np.concatenate([prefix, smooth])
 
 
 def render_result(grid, start, goal, dqn_result, bfs_result, output_path):
@@ -432,20 +560,53 @@ def render_result(grid, start, goal, dqn_result, bfs_result, output_path):
     plt.close(fig)
 
 
-def render_training_curve(rewards, losses, output_path):
+def render_training_curve(rewards, losses, output_path, eval_points=None):
     episodes = np.arange(1, len(rewards) + 1)
-    fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    fig, axes = plt.subplots(3, 1, figsize=(10, 11), sharex=True)
 
     axes[0].plot(episodes, rewards, color="#2c7fb8", linewidth=1.4)
+    axes[0].plot(
+        episodes,
+        moving_average(rewards, window=20),
+        color="#e34a33",
+        linewidth=2.0,
+        label="20-episode moving average",
+    )
     axes[0].set_ylabel("Episode Reward")
     axes[0].set_title("DQN Training Reward Curve")
     axes[0].grid(alpha=0.25)
+    axes[0].legend(loc="lower right")
 
     axes[1].plot(episodes, losses, color="#d95f0e", linewidth=1.2)
-    axes[1].set_xlabel("Episode")
+    axes[1].plot(
+        episodes,
+        moving_average(losses, window=20),
+        color="#756bb1",
+        linewidth=2.0,
+        label="20-episode moving average",
+    )
     axes[1].set_ylabel("Loss")
     axes[1].set_title("DQN Training Loss Curve")
     axes[1].grid(alpha=0.25)
+    axes[1].legend(loc="upper right")
+
+    eval_points = eval_points or []
+    if eval_points:
+        eval_episodes = [item["episode"] for item in eval_points]
+        eval_rates = [item["success_rate"] * 100.0 for item in eval_points]
+        axes[2].plot(
+            eval_episodes,
+            eval_rates,
+            color="#238b45",
+            linewidth=1.8,
+            marker="o",
+            markersize=4,
+        )
+    axes[2].set_xlabel("Episode")
+    axes[2].set_ylabel("Success Rate (%)")
+    axes[2].set_title("Generalization Eval on Fixed Unseen Mazes")
+    axes[2].set_ylim(0, 100)
+    axes[2].grid(alpha=0.25)
 
     fig.tight_layout()
     fig.savefig(output_path, dpi=200, bbox_inches="tight")
@@ -453,9 +614,13 @@ def render_training_curve(rewards, losses, output_path):
 
 
 def main():
+    model_path = "dqn_30x30_model.pt"
     random.seed(42)
     np.random.seed(42)
     torch.manual_seed(42)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(42)
+        torch.backends.cudnn.benchmark = True
 
     grid, start, goal, bfs_result = generate_complex_map(size=30, seed=42)
     planner = DeepRLPathPlanner(
@@ -466,21 +631,43 @@ def main():
         gamma=0.98,
         epsilon_start=1.0,
         epsilon_end=0.05,
-        epsilon_decay=0.988,
-        batch_size=32,
-        target_update=10,
+        epsilon_decay=0.992,
+        batch_size=64,
+        target_update=20,
     )
 
-    print("开始训练 DQN 路径规划器...")
-    rewards, losses, best_result = planner.train(episodes=120)
+    resumed = planner.load_weights(model_path)
+    if resumed:
+        # 继续训练时适度恢复探索，避免模型被过早收敛到局部策略。
+        planner.epsilon = max(planner.epsilon, 0.20)
+        print(f"检测到已有模型 {model_path}，将从当前参数继续训练。")
 
-    final_result = best_result if best_result is not None else planner.rollout_policy()
+    print("开始训练 DQN 路径规划器（多迷宫训练模式）...")
+    rewards, losses, best_result, eval_history = planner.train(
+        episodes=800,
+        random_maps=True,
+        map_seed_start=1000,
+        eval_interval=20,
+        eval_mazes=5,
+        eval_seed_start=2000,
+    )
+
+    last_result = planner.rollout_policy()
+    final_result = best_result if best_result is not None else last_result
+    generalization = evaluate_generalization(planner, num_mazes=10, start_seed=100)
 
     print(f"BFS 最短路径长度: {len(bfs_result.path) - 1}")
+    print(f"最终一次贪心回放是否成功: {last_result.success}")
     if final_result.success:
         print(f"DQN 规划成功，路径长度: {len(final_result.path) - 1}")
     else:
         print("DQN 当前训练轮数下尚未稳定收敛到目标点，可增加训练轮数继续优化。")
+    print(
+        f"10 张新迷宫测试成功率: "
+        f"{generalization['success_count']}/{generalization['num_mazes']}"
+    )
+    if generalization["success_count"] > 0:
+        print(f"成功样本相对 BFS 的平均路径倍率: {generalization['avg_path_ratio']:.2f}")
 
     render_result(
         grid,
@@ -490,9 +677,14 @@ def main():
         bfs_result,
         output_path="dqn_30x30_result.png",
     )
-    render_training_curve(rewards, losses, output_path="dqn_30x30_training_curve.png")
+    render_training_curve(
+        rewards,
+        losses,
+        output_path="dqn_30x30_training_curve.png",
+        eval_points=eval_history,
+    )
 
-    torch.save(planner.policy_net.state_dict(), "dqn_30x30_model.pt")
+    torch.save(planner.policy_net.state_dict(), model_path)
     print("结果图已保存为 dqn_30x30_result.png")
     print("训练曲线已保存为 dqn_30x30_training_curve.png")
     print("模型权重已保存为 dqn_30x30_model.pt")
